@@ -1,0 +1,125 @@
+
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>StilCephe - Levha Optimizasyonu (Mobil Final)</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    .rotate-text {
+      writing-mode: vertical-rl;
+      transform: rotate(180deg);
+    }
+  </style>
+</head>
+<body class="bg-gray-100 text-sm">
+  <div class="max-w-4xl mx-auto p-4 sm:p-6 bg-white shadow rounded-lg mt-6">
+    <h1 class="text-2xl sm:text-3xl font-bold text-center mb-4">StilCephe - Levha Kesim Optimizasyonu</h1>
+
+    <div class="mb-4">
+      <label class="block font-semibold">Levha Ölçüsü (Genişlik x Yükseklik, mm):</label>
+      <input id="sheetW" type="number" value="1200" class="border p-2 rounded w-full mb-2" placeholder="Genişlik">
+      <input id="sheetH" type="number" value="2800" class="border p-2 rounded w-full" placeholder="Yükseklik">
+    </div>
+
+    <div class="mb-4">
+      <label class="block font-semibold">Parça Listesi (GxYxAdet satır satır):</label>
+      <textarea id="parts" rows="6" class="border p-2 rounded w-full" placeholder="Örnek:
+850x250x2
+1000x730x2
+1200x750x1"></textarea>
+    </div>
+
+    <button onclick="optimize()" class="bg-blue-600 text-white py-2 px-4 rounded w-full hover:bg-blue-700">OPTİMİZE ET</button>
+
+    <div id="result" class="mt-6 hidden">
+      <h2 class="text-xl font-bold mb-2">Sonuçlar:</h2>
+      <p><strong>Kullanılan Levha Sayısı:</strong> <span id="sheetCount"></span></p>
+
+      <div id="layoutArea" class="space-y-6 mt-4 overflow-x-auto"></div>
+    </div>
+  </div>
+
+<script>
+function optimize() {
+  const sheetW = parseInt(document.getElementById("sheetW").value);
+  const sheetH = parseInt(document.getElementById("sheetH").value);
+
+  if (!sheetW || !sheetH || sheetW <= 0 || sheetH <= 0) {
+    alert("Lütfen geçerli levha ölçüleri girin.");
+    return;
+  }
+
+  let parts = [];
+  const rawLines = document.getElementById("parts").value.trim().split("\n");
+  for (const line of rawLines) {
+    if (!line.includes("x") && !line.includes("X")) continue;
+    const [w, h, qty] = line.toLowerCase().replaceAll('x','X').split('X').map(Number);
+    if (isNaN(w) || isNaN(h) || isNaN(qty)) continue;
+    for (let i = 0; i < qty; i++) parts.push({w, h});
+  }
+
+  if (parts.length === 0) {
+    alert("Geçerli parça verisi girilmedi.");
+    return;
+  }
+
+  parts.sort((a, b) => (b.w * b.h) - (a.w * a.h));
+
+  let sheets = [];
+
+  partsLoop:
+  for (const part of parts) {
+    for (const sheet of sheets) {
+      if (place(sheet, part, sheetW, sheetH)) continue partsLoop;
+    }
+    const newSheet = { items: [], grid: Array(sheetW).fill(0) };
+    place(newSheet, part, sheetW, sheetH);
+    sheets.push(newSheet);
+  }
+
+  document.getElementById("sheetCount").innerText = sheets.length;
+  document.getElementById("result").classList.remove("hidden");
+
+  const layoutArea = document.getElementById("layoutArea");
+  layoutArea.innerHTML = "";
+  sheets.forEach((sheet, idx) => {
+    const rawScale = window.innerWidth > 640 ? 500 / sheetW : window.innerWidth * 0.85 / sheetW;
+    const scale = isNaN(rawScale) || rawScale <= 0 ? 0.4 : rawScale;
+
+    let html = `<div><h3 class="font-bold mb-2">Levha #${idx + 1}</h3>
+    <div class="relative border bg-white mx-auto" style="width:${sheetW * scale}px;height:${sheetH * scale}px;">`;
+
+    sheet.items.forEach(item => {
+      const label = `${item.w}x${item.h}`;
+      const isRotated = item.h > item.w;
+      html += `<div class="absolute border text-[10px] bg-blue-200 text-center flex items-center justify-center ${isRotated ? 'rotate-text' : ''}" 
+        style="left:${item.x * scale}px;top:${item.y * scale}px;width:${item.w * scale}px;height:${item.h * scale}px;">
+        ${label}
+      </div>`;
+    });
+
+    html += "</div></div>";
+    layoutArea.innerHTML += html;
+  });
+}
+
+function place(sheet, part, sheetW, sheetH) {
+  const tryPlace = (w, h) => {
+    for (let x = 0; x <= sheetW - w; x++) {
+      let maxY = 0;
+      for (let i = 0; i < w; i++) maxY = Math.max(maxY, sheet.grid[x + i]);
+      if (maxY + h <= sheetH) {
+        for (let i = 0; i < w; i++) sheet.grid[x + i] = maxY + h;
+        sheet.items.push({ w, h, x, y: maxY });
+        return true;
+      }
+    }
+    return false;
+  };
+  return tryPlace(part.w, part.h) || tryPlace(part.h, part.w);
+}
+</script>
+</body>
+</html>
